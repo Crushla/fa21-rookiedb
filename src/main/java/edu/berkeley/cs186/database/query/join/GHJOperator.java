@@ -47,7 +47,7 @@ public class GHJOperator extends JoinOperator {
             // and return an iterator over it once the algorithm completes
             this.joinedRecords = new Run(getTransaction(), getSchema());
             this.run(getLeftSource(), getRightSource(), 1);
-        };
+        }
         return joinedRecords.iterator();
     }
 
@@ -71,7 +71,16 @@ public class GHJOperator extends JoinOperator {
         // You may find the implementation in SHJOperator.java to be a good
         // starting point. You can use the static method HashFunc.hashDataBox
         // to get a hash value.
-        return;
+        assert pass >= 1;
+        int columnIndex = left?getLeftColumnIndex():getRightColumnIndex();
+        for (Record record: records) {
+            DataBox value = record.getValue(columnIndex);
+            int hash = HashFunc.hashDataBox(value, pass);
+            int partitionNum = hash % partitions.length;
+            if (partitionNum < 0)  // hash might be negative
+                partitionNum += partitions.length;
+            partitions[partitionNum].add(record);
+        }
     }
 
     /**
@@ -112,6 +121,24 @@ public class GHJOperator extends JoinOperator {
         // You shouldn't refer to any variable starting with "left" or "right"
         // here, use the "build" and "probe" variables we set up for you.
         // Check out how SHJOperator implements this function if you feel stuck.
+        HashMap<DataBox, List<Record>> hashTable = new HashMap<>();
+        //找到小的分区，将其构成一个哈希表，然后和大分区进行朴素哈希连接
+        for (Record record: buildRecords) {
+            DataBox joinValue = record.getValue(buildColumnIndex);
+            if (!hashTable.containsKey(joinValue)) {
+                hashTable.put(joinValue, new ArrayList<>());
+            }
+            hashTable.get(joinValue).add(record);
+        }
+
+        for (Record record: probeRecords) {
+            DataBox value = record.getValue(probeColumnIndex);
+            if (!hashTable.containsKey(value))continue;
+            for (Record oRecord: hashTable.get(value)) {
+                Record joinedRecord = oRecord.concat(record);
+                joinedRecords.add(joinedRecord);
+            }
+        }
     }
 
     /**
@@ -136,6 +163,13 @@ public class GHJOperator extends JoinOperator {
             // TODO(proj3_part1): implement the rest of grace hash join
             // If you meet the conditions to run the build and probe you should
             // do so immediately. Otherwise you should make a recursive call.
+            if(leftPartitions[i].getNumPages()<=numBuffers-2
+                    ||rightPartitions[i].getNumPages()<=numBuffers-2){
+                //如果这个部分，两个表的大小都比m-2大，那么将一个部分的数据hash到一个hash表上去进行匹配
+                buildAndProbe(leftPartitions[i],rightPartitions[i]);
+            }else{
+                run(leftPartitions[i],rightPartitions[i],pass +1);
+            }
         }
     }
 
@@ -203,6 +237,10 @@ public class GHJOperator extends JoinOperator {
 
         // TODO(proj3_part1): populate leftRecords and rightRecords such that
         // SHJ breaks when trying to join them but not GHJ
+        for (int i = 0;i< 33;i++){
+            leftRecords.add(createRecord(1));
+            rightRecords.add(createRecord(i));
+        }
         return new Pair<>(leftRecords, rightRecords);
     }
 
@@ -223,7 +261,10 @@ public class GHJOperator extends JoinOperator {
         ArrayList<Record> leftRecords = new ArrayList<>();
         ArrayList<Record> rightRecords = new ArrayList<>();
         // TODO(proj3_part1): populate leftRecords and rightRecords such that GHJ breaks
-
+        for (int i = 0;i< 33;i++){
+            leftRecords.add(createRecord(1));
+            rightRecords.add(createRecord(1));
+        }
         return new Pair<>(leftRecords, rightRecords);
     }
 }

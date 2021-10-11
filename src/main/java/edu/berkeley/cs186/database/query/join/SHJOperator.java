@@ -52,7 +52,7 @@ public class SHJOperator extends JoinOperator {
             // iterator over it once the algorithm completes
             this.joinedRecords = new Run(getTransaction(), getSchema());
             this.run(getLeftSource(), getRightSource(), 1);
-        };
+        }
         return joinedRecords.iterator();
     }
 
@@ -131,7 +131,7 @@ public class SHJOperator extends JoinOperator {
 
         // Create empty partitions
         Partition[] partitions = createPartitions();
-
+        //分区阶段
         // Partition records into left and right
         this.partition(partitions, leftRecords);
 
