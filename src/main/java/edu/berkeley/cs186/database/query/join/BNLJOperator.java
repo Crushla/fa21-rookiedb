@@ -87,6 +87,15 @@ public class BNLJOperator extends JoinOperator {
          */
         private void fetchNextLeftBlock() {
             // TODO(proj3_part1): implement
+            //根据注释
+            //首先leftBlockIterator应该设置为一个回朔迭代器,覆盖左源到B-2页的记录
+            //leftRecord应该设置为该块的第一个记录
+            //如果左源没有更多记录，则该方法什么也不做
+            if (leftSourceIterator.hasNext()) {
+                leftBlockIterator = getBlockIterator(leftSourceIterator,getLeftSource().getSchema(),numBuffers-2);
+                leftBlockIterator.markNext();
+                leftRecord = leftBlockIterator.next();
+            }
         }
 
         /**
@@ -101,6 +110,10 @@ public class BNLJOperator extends JoinOperator {
          */
         private void fetchNextRightPage() {
             // TODO(proj3_part1): implement
+            if (rightSourceIterator.hasNext()){
+                rightPageIterator = getBlockIterator(rightSourceIterator,getRightSource().getSchema(),1);
+                rightPageIterator.markNext();
+            }
         }
 
         /**
@@ -113,7 +126,43 @@ public class BNLJOperator extends JoinOperator {
          */
         private Record fetchNextRecord() {
             // TODO(proj3_part1): implement
-            return null;
+            if (leftRecord == null){
+                return null;
+            }
+            //左边的每块和右边的每页中的数据进行匹配
+            while(true){
+                //页中数据没有用完，就获取下一个记录进行匹配
+                if(rightPageIterator.hasNext()){
+                    Record rightRecord = rightPageIterator.next();
+                    if(compare(leftRecord,rightRecord)==0){
+                        return leftRecord.concat(rightRecord);
+                    }
+                }
+                //块中数据已经用完，但是块中数据还有，就将块迭代到下一个，页重置
+                else if (leftBlockIterator.hasNext()){
+                    leftRecord = leftBlockIterator.next();
+                    rightPageIterator.reset();
+                }
+                //块中数据和页中数据已经用完，但是还有页
+                else if (rightSourceIterator.hasNext()){
+                    //迭代到下一页中
+                    fetchNextRightPage();
+                    //将当前块迭代器重置，并将其指向第一个记录
+                    leftBlockIterator.reset();
+                    leftRecord = leftBlockIterator.next();
+                }
+                //块中记录和页中记录都已经用完，但是页已经用完
+                else if(leftSourceIterator.hasNext()){
+                    //块迭代器指向下一个块
+                    fetchNextLeftBlock();
+                    //页的源迭代器重置
+                    rightSourceIterator.reset();
+                    //并将页迭代器指向第一页
+                    fetchNextRightPage();
+                }else {
+                    return null;
+                }
+            }
         }
 
         /**
