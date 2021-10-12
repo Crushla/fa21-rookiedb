@@ -6,6 +6,7 @@ import edu.berkeley.cs186.database.query.JoinOperator;
 import edu.berkeley.cs186.database.query.MaterializeOperator;
 import edu.berkeley.cs186.database.query.QueryOperator;
 import edu.berkeley.cs186.database.query.SortOperator;
+import edu.berkeley.cs186.database.query.disk.Run;
 import edu.berkeley.cs186.database.table.Record;
 
 import java.util.Arrays;
@@ -140,9 +141,64 @@ public class SortMergeOperator extends JoinOperator {
          */
         private Record fetchNextRecord() {
             // TODO(proj3_part1): implement
+            while(leftRecord!=null&&rightRecord!=null){
+                if(marked){
+                    //相等之后的步骤都在这里执行
+                    //右表向下一步
+                    if (rightIterator.hasNext()){
+                        rightRecord = rightIterator.next();
+                        //如果相等，则返回
+                        if(compare(leftRecord,rightRecord)==0) {
+                            marked = true;
+                            return leftRecord.concat(rightRecord);
+                        }
+                    }
+                    //如果为空或者compare(leftRecord,rightRecord)!=0，则重置
+                    rightIterator.reset();
+                    if (rightIterator.hasNext()){
+                        rightRecord = rightIterator.next();
+                    }else{
+                        rightRecord = null;
+                    }
+                    if (leftIterator.hasNext()){
+                        leftRecord = leftIterator.next();
+                    }else{
+                        leftRecord = null;
+                    }
+                    marked = false;
+                    continue;
+                }
+
+               if (compare(leftRecord,rightRecord)>0){
+                   //右表的值大于左表
+                   //标记位为false
+                   marked = false;
+                   //将这个值记做标记
+                   rightIterator.markNext();
+                   //右表向下一步
+                   if (rightIterator.hasNext()){
+                       rightRecord = rightIterator.next();
+                   }else{
+                       rightRecord = null;
+                   }
+               }else if(compare(leftRecord,rightRecord)<0){
+                   //左表小于右表的情况
+                   marked = false;
+                   //左表向下一步
+                   if (leftIterator.hasNext()){
+                       leftRecord = leftIterator.next();
+                   }else{
+                       leftRecord = null;
+                   }
+               }else{
+                   //相等的情况
+                   //标记为true
+                   marked = true;
+                   return leftRecord.concat(rightRecord);
+               }
+            }
             return null;
         }
-
         @Override
         public void remove() {
             throw new UnsupportedOperationException();
