@@ -87,7 +87,13 @@ public class SortOperator extends QueryOperator {
      */
     public Run sortRun(Iterator<Record> records) {
         // TODO(proj3_part1): implement
-        return null;
+        //根据makeRun生成一个Run对象，因为makeRun的参数为list,就生成一个list，加入元素，并对他进行排序
+        ArrayList<Record> Records = new ArrayList<>();
+        while(records.hasNext()){
+            Records.add(records.next());
+        }
+        Records.sort(comparator);
+        return makeRun(Records);
     }
 
     /**
@@ -108,7 +114,28 @@ public class SortOperator extends QueryOperator {
     public Run mergeSortedRuns(List<Run> runs) {
         assert (runs.size() <= this.numBuffers - 1);
         // TODO(proj3_part1): implement
-        return null;
+        //先将所有的元素存储到优先队列中
+        //一步步取出优先队列中的元素
+        PriorityQueue<Pair<Record,Integer>> queue = new PriorityQueue<>(runs.size(), new RecordPairComparator());
+        Run run = makeRun();
+        ArrayList<Iterator<Record>> list = new ArrayList<>();
+        for (Run r: runs) {
+           list.add(r.iterator());
+        }
+
+        for (int i = 0,j=0; i < list.size(); i++) {
+            while (list.get(i).hasNext()){
+                queue.offer(new Pair<>(list.get(i).next(),j));
+                j++;
+            }
+        }
+
+        while(!queue.isEmpty()){
+            Pair<Record, Integer> poll = queue.poll();
+            run.add(poll.getFirst());
+        }
+
+        return run;
     }
 
     /**
@@ -133,7 +160,19 @@ public class SortOperator extends QueryOperator {
      */
     public List<Run> mergePass(List<Run> runs) {
         // TODO(proj3_part1): implement
-        return Collections.emptyList();
+        //将run根据numBuffers-1为一组进行合并
+        List<Run> run = new ArrayList<>();
+        List<Run> res = new ArrayList<>();
+        int num = numBuffers-1;
+        for (int i = 0; i < runs.size(); i++) {
+            run.add(runs.get(i));
+            //如果是最后一个或者是已经到达numBuffers-1，则重新开一个run
+            if(i==runs.size()-1||i==num-1){
+                res.add(mergeSortedRuns(run));
+                run = new ArrayList<>();
+            }
+        }
+        return res;
     }
 
     /**
@@ -149,7 +188,17 @@ public class SortOperator extends QueryOperator {
         Iterator<Record> sourceIterator = getSource().iterator();
 
         // TODO(proj3_part1): implement
-        return makeRun(); // TODO(proj3_part1): replace this!
+        List<Run>runs = new ArrayList<>();
+        //每次都从源迭代器中取出numBuffers个页，并对他们进行排序
+        while (sourceIterator.hasNext()) {
+            Iterator<Record> iterator = getBlockIterator(sourceIterator, getSchema(), numBuffers);
+            runs.add(sortRun(iterator));
+        }
+        //每次合并numBuffers-1个组，直到变为1组
+        while(runs.size()>1){
+            runs = mergePass(runs);
+        }
+        return runs.get(0);
     }
 
     /**
