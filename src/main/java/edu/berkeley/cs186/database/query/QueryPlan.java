@@ -577,7 +577,24 @@ public class QueryPlan {
         QueryOperator minOp = new SequentialScanOperator(this.transaction, table);
 
         // TODO(proj3_part2): implement
-        return minOp;
+        //计算出IO值
+        int minIO = minOp.estimateIOCost();
+        //获取索引的下标i
+        List<Integer> indexs = getEligibleIndexColumns(table);
+        int expect = -1;
+        for (int index : indexs) {
+            //根据索引生成所有的情况，在进行比较
+            SelectPredicate selectPredicate = selectPredicates.get(index);
+            IndexScanOperator records = new IndexScanOperator(transaction, table, selectPredicate.column,selectPredicate.operator,selectPredicate.value);
+            int IO = records.estimateIOCost();
+            if (IO<minIO){
+                minIO = IO;
+                minOp = records;
+                expect = index;
+            }
+        }
+        //对任何涉及表的选择谓词进行下推
+        return addEligibleSelections(minOp,expect);
     }
 
     // Task 6: Join Selection //////////////////////////////////////////////////
@@ -646,6 +663,13 @@ public class QueryPlan {
         //      calculate the cheapest join with the new table (the one you
         //      fetched an operator for from pass1Map) and the previously joined
         //      tables. Then, update the result map if needed.
+
+
+
+
+
+
+
         return result;
     }
 

@@ -11,7 +11,7 @@ import java.util.Collections;
 import java.util.Iterator;
 import java.util.List;
 import java.util.NoSuchElementException;
-
+//指定的列必须有一个建立在其上的索引，才能工作
 class IndexScanOperator extends QueryOperator {
     private TransactionContext transaction;
     private String tableName;

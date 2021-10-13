@@ -7,7 +7,7 @@ import edu.berkeley.cs186.database.table.Schema;
 import edu.berkeley.cs186.database.table.stats.TableStats;
 
 import java.util.Iterator;
-
+//用表名在该表中的所有记录提供的迭代器
 public class SequentialScanOperator extends QueryOperator {
     private TransactionContext transaction;
     private String tableName;
