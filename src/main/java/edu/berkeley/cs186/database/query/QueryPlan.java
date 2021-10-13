@@ -663,13 +663,32 @@ public class QueryPlan {
         //      calculate the cheapest join with the new table (the one you
         //      fetched an operator for from pass1Map) and the previously joined
         //      tables. Then, update the result map if needed.
-
-
-
-
-
-
-
+        for (Set<String> tables: prevMap.keySet()) {
+            for (JoinPredicate lists: joinPredicates) {
+                String leftTable = lists.leftTable;
+                String rightTable = lists.rightTable;
+                String leftColumn = lists.leftColumn;
+                String rightColumn = lists.rightColumn;
+                //遍历所有表
+                //表中已经包含了左表，但是没包含右表，就要计算右表和左边所有表的最小加入消耗，然后将右表加入
+                if (tables.contains(leftTable) & !tables.contains(rightTable)) {
+                    Set<String> pass1Set = new HashSet<>();
+                    pass1Set.add(rightTable);
+                    //使用minCostJoinType计算消耗最低的
+                    QueryOperator op = minCostJoinType(prevMap.get(tables), pass1Map.get(pass1Set), leftColumn, rightColumn);
+                    Set<String> newTables = new HashSet<String>(tables);
+                    newTables.add(rightTable);
+                    result.put(newTables, op);
+                } else if (!tables.contains(leftTable) & tables.contains(rightTable)) {
+                    Set<String> pass1Set = new HashSet<>();
+                    pass1Set.add(leftTable);
+                    QueryOperator op = minCostJoinType(pass1Map.get(pass1Set), prevMap.get(tables), leftColumn, rightColumn);
+                    Set<String> newTables = new HashSet<String>(tables);
+                    newTables.add(leftTable);
+                    result.put(newTables, op);
+                }
+            }
+        }
         return result;
     }
 
@@ -719,7 +738,24 @@ public class QueryPlan {
         // Set the final operator to the lowest cost operator from the last
         // pass, add group by, project, sort and limit operators, and return an
         // iterator over the final operator.
-        return this.executeNaive(); // TODO(proj3_part2): Replace this!
+        Map<Set<String>, QueryOperator> prevMap = new HashMap<>();
+        for (String table:tableNames) {
+            Set<String> set = new HashSet<>();
+            set.add(table);
+            prevMap.put(set,minCostSingleAccess(table));
+        }
+        //将pass1Map中的表加入到prevMap中，直到全部被加入
+        Map<Set<String>, QueryOperator> pass1Map = new HashMap<>(prevMap);
+        for (int pass = 2; pass <= tableNames.size(); pass++) {
+            prevMap = minCostJoins(prevMap, pass1Map);
+        }
+        //找出最小的
+        finalOperator = minCostOperator(prevMap);
+        addGroupBy();
+        addProject();
+        addSort();
+        addLimit();
+        return finalOperator.iterator();
     }
 
     // EXECUTE NAIVE ///////////////////////////////////////////////////////////
