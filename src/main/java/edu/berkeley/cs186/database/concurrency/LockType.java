@@ -1,5 +1,7 @@
 package edu.berkeley.cs186.database.concurrency;
 
+import java.util.ArrayList;
+
 /**
  * Utility methods to track the relationships between different lock types.
  */
@@ -22,8 +24,34 @@ public enum LockType {
             throw new NullPointerException("null lock type");
         }
         // TODO(proj4_part1): implement
-
-        return false;
+//                *     | NL  | IS  | IX  |  S  | SIX |  X
+//                * ----+-----+-----+-----+-----+-----+-----
+//                * NL  |  T  |  T  |  T  |  T  |  T  |  T
+//                * ----+-----+-----+-----+-----+-----+-----
+//                * IS  |  T  |  T  |  T  |  T  |     |
+//                * ----+-----+-----+-----+-----+-----+-----
+//                * IX  |  T  |  T  |  T  |  F  |     |
+//                * ----+-----+-----+-----+-----+-----+-----
+//                * S   |  T  |  T  |  F  |  T  |  F  |  F
+//                * ----+-----+-----+-----+-----+-----+-----
+//                * SIX |  T  |     |     |  F  |     |
+//                * ----+-----+-----+-----+-----+-----+-----
+//                * X   |  T  |     |     |  F  |     |  F
+//                * ----+-----+-----+-----+-----+-----+-----
+        if(a==NL||b==NL){
+            return true;
+        }
+        if (a==X||b==X){
+            return false;
+        }
+        if (a==IS||b==IS){
+            return true;
+        }
+        if (a==SIX||b==SIX){
+            return false;
+        }
+        //同名则true
+        return a == b;
     }
 
     /**
@@ -54,8 +82,33 @@ public enum LockType {
             throw new NullPointerException("null lock type");
         }
         // TODO(proj4_part1): implement
-
-        return false;
+//                *     | NL  | IS  | IX  |  S  | SIX |  X
+//                * ----+-----+-----+-----+-----+-----+-----
+//                * NL  |  T  |  F  |  F  |  F  |  F  |  F
+//                * ----+-----+-----+-----+-----+-----+-----
+//                * IS  |  T  |  T  |  F  |  T  |  F  |  F
+//                * ----+-----+-----+-----+-----+-----+-----
+//                * IX  |  T  |  T  |  T  |  T  |  T  |  T
+//                * ----+-----+-----+-----+-----+-----+-----
+//                * S   |  T  |     |     |     |     |
+//                * ----+-----+-----+-----+-----+-----+-----
+//                * SIX |  T  |     |     |     |     |
+//                * ----+-----+-----+-----+-----+-----+-----
+//                * X   |  T  |     |     |     |     |
+//                * ----+-----+-----+-----+-----+-----+-----
+        if (childLockType == NL){
+            return true;
+        }
+        if (parentLockType == NL){
+            return false;
+        }
+        if (parentLockType == IX){
+            return true;
+        }
+        if (parentLockType == childLockType){
+            return true;
+        }
+        return parentLockType==parentLock(childLockType);
     }
 
     /**
@@ -69,8 +122,33 @@ public enum LockType {
             throw new NullPointerException("null lock type");
         }
         // TODO(proj4_part1): implement
-
-        return false;
+//                *     | NL  | IS  | IX  |  S  | SIX |  X
+//                * ----+-----+-----+-----+-----+-----+-----
+//                * NL  |  T  |  F  |  F  |  F  |  F  |  F
+//                * ----+-----+-----+-----+-----+-----+-----
+//                * IS  |     |  T  |  F  |  F  |     |  F
+//                * ----+-----+-----+-----+-----+-----+-----
+//                * IX  |     |  T  |  T  |  F  |     |  F
+//                * ----+-----+-----+-----+-----+-----+-----
+//                * S   |     |     |     |  T  |     |  F
+//                * ----+-----+-----+-----+-----+-----+-----
+//                * SIX |     |     |     |  T  |     |  F
+//                * ----+-----+-----+-----+-----+-----+-----
+//                * X   |     |     |     |  T  |     |  T
+//                * ----+-----+-----+-----+-----+-----+-----
+        if (substitute == required){
+            return true;
+        }
+        if (substitute==NL){
+            return false;
+        }
+        if (required == X){
+            return false;
+        }
+        if (substitute == IS){
+            return false;
+        }
+        return substitute != IX || required != S;
     }
 
     /**
