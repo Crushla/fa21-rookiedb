@@ -42,8 +42,19 @@ public class LockUtil {
         LockType explicitLockType = lockContext.getExplicitLockType(transaction);
 
         // TODO(proj4_part2): implement
-        return;
+        if (LockType.substitutable(explicitLockType,requestType)){
+            return;
+        }else if (explicitLockType == LockType.IX&&requestType==LockType.S){
+            lockContext.promote(transaction, LockType.SIX);
+        } else if (explicitLockType.isIntent()) {
+
+        }else{
+
+        }
     }
 
     // TODO(proj4_part2) add any helper methods you want
+    public static void helper() {
+
+    }
 }

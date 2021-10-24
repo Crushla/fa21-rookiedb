@@ -281,14 +281,20 @@ public class LockContext {
     public LockType getEffectiveLockType(TransactionContext transaction) {
         if (transaction == null) return LockType.NL;
         // TODO(proj4_part2): implement
-        if (getExplicitLockType(transaction)!=LockType.NL){
-            return getExplicitLockType(transaction);
+        LockType explicitLockType = getExplicitLockType(transaction);
+        if (parent==null){
+            if (explicitLockType.isIntent()){
+                return LockType.NL;
+            }
+            return explicitLockType;
         }
-        LockType type = parentContext().getEffectiveLockType(transaction);
-        if (type!=LockType.S){
-            return LockType.NL;
+        if (explicitLockType !=LockType.NL){
+            if (explicitLockType == LockType.SIX){
+                explicitLockType = LockType.S;
+            }
+            return explicitLockType;
         }
-        return type;
+        return parentContext().getEffectiveLockType(transaction);
     }
 
     /**
