@@ -356,7 +356,7 @@ public class LockManager {
             if (type == LockType.NL){
                 throw new NoLockHeldException("no lock on 'name' is held by 'transaction'");
             }
-            if (LockType.canBeParentLock(newLockType, type)){
+            if (LockType.canBeParentLock(type, newLockType)){
                 throw new InvalidLockException("not promotion");
             }
 

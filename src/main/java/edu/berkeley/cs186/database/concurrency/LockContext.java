@@ -2,6 +2,7 @@ package edu.berkeley.cs186.database.concurrency;
 
 import edu.berkeley.cs186.database.TransactionContext;
 
+import javax.swing.*;
 import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.List;
@@ -29,10 +30,12 @@ public class LockContext {
 
     // Whether this LockContext is readonly. If a LockContext is readonly, acquire/release/promote/escalate should
     // throw an UnsupportedOperationException.
+    //这个LockContext是否为只读
     protected boolean readonly;
 
     // A mapping between transaction numbers, and the number of locks on children of this LockContext
     // that the transaction holds.
+    //事务号和锁数量之间的映射
     protected final Map<Long, Integer> numChildLocks;
 
     // You should not modify or use this directly.
@@ -96,8 +99,22 @@ public class LockContext {
     public void acquire(TransactionContext transaction, LockType lockType)
             throws InvalidLockException, DuplicateLockRequestException {
         // TODO(proj4_part2): implement
-
-        return;
+        if (readonly){
+            throw new UnsupportedOperationException("read only");
+        }
+        if (lockType == getExplicitLockType(transaction)){
+            throw new DuplicateLockRequestException("already held");
+        }
+        if (parentContext()!=null){
+            LockType type = parentContext().getExplicitLockType(transaction);
+            if (!LockType.canBeParentLock(type,lockType)){
+                throw new InvalidLockException("Invalid");
+            }
+        }
+        lockman.acquire(transaction,name,lockType);
+        if (parentContext()!=null) {
+            parentContext().numChildLocks.put(transaction.getTransNum(), parentContext().getNumChildren(transaction) + 1);
+        }
     }
 
     /**
@@ -114,8 +131,22 @@ public class LockContext {
     public void release(TransactionContext transaction)
             throws NoLockHeldException, InvalidLockException {
         // TODO(proj4_part2): implement
-
-        return;
+        if (readonly){
+            throw new UnsupportedOperationException("readonly");
+        }
+        if (getExplicitLockType(transaction)==LockType.NL){
+            throw new NoLockHeldException("no lock");
+        }
+        //Attemptng to release an IS lock when a child resource still holds an S locks should throw an InvalidLockException
+        for (LockContext child:children.values()){
+            if (!LockType.canBeParentLock(LockType.NL,child.getExplicitLockType(transaction))){
+                throw new InvalidLockException("invalid");
+            }
+        }
+        lockman.release(transaction,name);
+        if (parentContext()!=null) {
+            parentContext().numChildLocks.put(transaction.getTransNum(), parentContext().getNumChildren(transaction) - 1);
+        }
     }
 
     /**
@@ -140,8 +171,29 @@ public class LockContext {
     public void promote(TransactionContext transaction, LockType newLockType)
             throws DuplicateLockRequestException, NoLockHeldException, InvalidLockException {
         // TODO(proj4_part2): implement
-
-        return;
+        LockType type = getExplicitLockType(transaction);
+        if (readonly){
+            throw new UnsupportedOperationException("readonly");
+        }
+        if (type == LockType.NL){
+            throw new NoLockHeldException("no lock");
+        }
+        if (type == newLockType){
+            throw new DuplicateLockRequestException("already has a newLockType lock");
+        }
+        if (parentContext()!=null){
+            if (!LockType.substitutable(newLockType,type)){
+                throw new InvalidLockException("InvalidLock");
+            }
+        }
+        if (newLockType == LockType.SIX && type.isIntent()){
+            List<ResourceName> resourceNames = sisDescendants(transaction);
+            resourceNames.add(name);
+            lockman.acquireAndRelease(transaction,name,newLockType,resourceNames);
+            numChildLocks.put(transaction.getTransNum(), getNumChildren(transaction) - resourceNames.size());
+        } else{
+            lockman.promote(transaction, name, newLockType);
+        }
     }
 
     /**
@@ -179,18 +231,44 @@ public class LockContext {
      */
     public void escalate(TransactionContext transaction) throws NoLockHeldException {
         // TODO(proj4_part2): implement
-
-        return;
+        LockType type = getExplicitLockType(transaction);
+        if (readonly){
+            throw new UnsupportedOperationException("readonly");
+        }
+        if (type == LockType.NL){
+            throw new NoLockHeldException("no lock");
+        }
+        LockType newType = type;
+        List<ResourceName> resourceNames = new ArrayList<>();
+        for (LockContext context: children.values()) {
+            LockType explicitLockType = context.getExplicitLockType(transaction);
+            if (!context.readonly && explicitLockType != LockType.NL) {
+                resourceNames.add(context.name);
+            }
+            if (LockType.substitutable(explicitLockType,newType)){
+                newType = explicitLockType;
+            }
+        }
+        if (newType == LockType.IS){
+            newType = LockType.S;
+        }else if (newType.isIntent()){
+            newType = LockType.X;
+        }
+        if (newType!=type){
+            lockman.acquireAndRelease(transaction,name,newType,resourceNames);
+        }
+        numChildLocks.put(transaction.getTransNum(),0);
     }
 
     /**
      * Get the type of lock that `transaction` holds at this level, or NL if no
      * lock is held at this level.
      */
+    //获取事务在此级别持有的锁的类型，如果在此级别没有持有锁，则获取NL。
     public LockType getExplicitLockType(TransactionContext transaction) {
         if (transaction == null) return LockType.NL;
         // TODO(proj4_part2): implement
-        return LockType.NL;
+        return lockman.getLockType(transaction,name);
     }
 
     /**
@@ -199,10 +277,18 @@ public class LockContext {
      * level) or explicitly. Returns NL if there is no explicit nor implicit
      * lock.
      */
+    //获取事务在此级别拥有的锁的类型，可以是隐式的(例如，更高级别的显式S锁意味着在此级别的S锁)，也可以是显式的。如果没有显式或隐式锁，则返回NL。
     public LockType getEffectiveLockType(TransactionContext transaction) {
         if (transaction == null) return LockType.NL;
         // TODO(proj4_part2): implement
-        return LockType.NL;
+        if (getExplicitLockType(transaction)!=LockType.NL){
+            return getExplicitLockType(transaction);
+        }
+        LockType type = parentContext().getEffectiveLockType(transaction);
+        if (type!=LockType.S){
+            return LockType.NL;
+        }
+        return type;
     }
 
     /**
@@ -211,9 +297,16 @@ public class LockContext {
      * @param transaction the transaction
      * @return true if holds a SIX at an ancestor, false if not
      */
+    //查看事务是否在该上下文的祖先处持有SIX锁
     private boolean hasSIXAncestor(TransactionContext transaction) {
         // TODO(proj4_part2): implement
-        return false;
+        if (parent == null){
+            return false;
+        }
+        if (parentContext().getExplicitLockType(transaction)==LockType.SIX){
+            return true;
+        }
+        return parentContext().hasSIXAncestor(transaction);
     }
 
     /**
@@ -223,9 +316,17 @@ public class LockContext {
      * @return a list of ResourceNames of descendants which the transaction
      * holds an S or IS lock.
      */
+    //获取所有锁的resourcename列表，这些锁是S或IS，并且是给定事务的当前上下文的后代
     private List<ResourceName> sisDescendants(TransactionContext transaction) {
         // TODO(proj4_part2): implement
-        return new ArrayList<>();
+        List<ResourceName> list = new ArrayList<>();
+        for (LockContext lock:children.values()){
+            LockType type = lock.getExplicitLockType(transaction);
+            if (type == LockType.IS||type == LockType.S){
+                list.add(lock.getResourceName());
+            }
+        }
+        return list;
     }
 
     /**
@@ -236,6 +337,8 @@ public class LockContext {
      * are only accessible to one transaction, so finer-grain locks make no
      * sense.
      */
+    //禁用锁的后代。这将导致该上下文的所有新子上下文都是只读的。
+    // 这用于索引和临时表(我们不允许细粒度锁)，前者是由于锁B+树的复杂性，后者是由于临时表只能被一个事务访问，所以细粒度锁没有意义。
     public void disableChildLocks() {
         this.childLocksDisabled = true;
     }
