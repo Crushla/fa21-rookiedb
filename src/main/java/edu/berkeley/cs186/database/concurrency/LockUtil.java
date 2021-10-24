@@ -45,7 +45,7 @@ public class LockUtil {
         if (LockType.substitutable(explicitLockType,requestType)){
             return;
         }else if (explicitLockType == LockType.IX&&requestType==LockType.S){
-            lockContext.promote(transaction, LockType.SIX);
+
         } else if (explicitLockType.isIntent()) {
 
         }else{

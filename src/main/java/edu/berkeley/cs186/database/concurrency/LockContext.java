@@ -240,6 +240,7 @@ public class LockContext {
         }
         LockType newType = type;
         List<ResourceName> resourceNames = new ArrayList<>();
+        resourceNames.add(name);
         for (LockContext context: children.values()) {
             LockType explicitLockType = context.getExplicitLockType(transaction);
             if (!context.readonly && explicitLockType != LockType.NL) {
