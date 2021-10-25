@@ -55,24 +55,7 @@ public class LockUtil {
             if (effectiveLockType != requestType)
                 lockContext.promote(transaction, requestType);
         }else{
-            List<LockContext> list = new ArrayList<>();
-            while (parentContext != null) {
-                list.add(parentContext);
-                parentContext = parentContext.parentContext();
-            }
-
-            LockType type = requestType == LockType.S? LockType.IS: LockType.IX;
-            for (int i = list.size() - 1; i >= 0; i--) {
-                LockContext context = list.get(i);
-                LockType currentType = context.getExplicitLockType(transaction);
-
-                if (currentType == LockType.NL) {
-                    context.acquire(transaction, type);
-                }
-                else if (!LockType.substitutable(currentType, type)) {
-                    context.promote(transaction, type);
-                }
-            }
+            helper(transaction, lockContext, requestType);
 
             if (explicitLockType == LockType.NL) {
                 lockContext.acquire(transaction, requestType);
@@ -84,4 +67,25 @@ public class LockUtil {
     }
 
     // TODO(proj4_part2) add any helper methods you want
+    private static void helper(TransactionContext transaction, LockContext lockContext, LockType requestType) {
+        List<LockContext> list = new ArrayList<>();
+        LockContext parentContext = lockContext.parentContext();
+        while (parentContext != null) {
+            list.add(parentContext);
+            parentContext = parentContext.parentContext();
+        }
+
+        LockType type = requestType == LockType.S? LockType.IS: LockType.IX;
+        for (int i = list.size() - 1; i >= 0; i--) {
+            LockContext context = list.get(i);
+            LockType currentType = context.getExplicitLockType(transaction);
+
+            if (currentType == LockType.NL) {
+                context.acquire(transaction, type);
+            }
+            else if (!LockType.substitutable(currentType, type)) {
+                context.promote(transaction, type);
+            }
+        }
+    }
 }
