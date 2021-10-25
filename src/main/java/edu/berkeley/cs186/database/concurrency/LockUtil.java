@@ -2,6 +2,9 @@ package edu.berkeley.cs186.database.concurrency;
 
 import edu.berkeley.cs186.database.TransactionContext;
 
+import java.util.ArrayList;
+import java.util.List;
+
 /**
  * LockUtil is a declarative layer which simplifies multigranularity lock
  * acquisition for the user (you, in the last task of Part 2). Generally
@@ -45,16 +48,40 @@ public class LockUtil {
         if (LockType.substitutable(explicitLockType,requestType)){
             return;
         }else if (explicitLockType == LockType.IX&&requestType==LockType.S){
-
+            lockContext.promote(transaction,LockType.SIX);
         } else if (explicitLockType.isIntent()) {
-
+            lockContext.escalate(transaction);
+            effectiveLockType = lockContext.getEffectiveLockType(transaction);
+            if (effectiveLockType != requestType)
+                lockContext.promote(transaction, requestType);
         }else{
+            List<LockContext> list = new ArrayList<>();
+            while (parentContext != null) {
+                list.add(parentContext);
+                parentContext = parentContext.parentContext();
+            }
 
+            LockType type = requestType == LockType.S? LockType.IS: LockType.IX;
+            for (int i = list.size() - 1; i >= 0; i--) {
+                LockContext context = list.get(i);
+                LockType currentType = context.getExplicitLockType(transaction);
+
+                if (currentType == LockType.NL) {
+                    context.acquire(transaction, type);
+                }
+                else if (!LockType.substitutable(currentType, type)) {
+                    context.promote(transaction, type);
+                }
+            }
+
+            if (explicitLockType == LockType.NL) {
+                lockContext.acquire(transaction, requestType);
+            }
+            else {
+                lockContext.promote(transaction, requestType);
+            }
         }
     }
 
     // TODO(proj4_part2) add any helper methods you want
-    public static void helper() {
-
-    }
 }
